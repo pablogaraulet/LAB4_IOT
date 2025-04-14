@@ -1,99 +1,68 @@
 #include <Arduino.h>
-#include <Wire.h>
-#include <SparkFunLSM6DSO.h>
 #include <BLEDevice.h>
-#include <BLEUtils.h>
 #include <BLEServer.h>
-#include <math.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
 #define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define LED_PIN 2 
 
-LSM6DSO imu;
-BLECharacteristic *pCharacteristic;
+class MyCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic *pCharacteristic) {
+    std::string value = pCharacteristic->getValue();
 
-int stepCount = 0;
-bool wasOverThreshold = false;
-float baseline = 0.0;
+    if (value.length() > 0) {
+      Serial.print("Received message: ");
+      for (int i = 0; i < value.length(); i++) {
+        Serial.print(value[i]);
+      }
+      Serial.println();
 
-const float THRESHOLD = 0.3; // Threshold for RMS value (tune if needed)
-unsigned long lastStepTime = 0;
+      // Convert to String and clean up the message
+      String msg = String(value.c_str());
+      msg.trim();         // Remove whitespace at start/end
+      msg.toLowerCase();  // Convert to lowercase
 
-void calibrateSensor() {
-  Serial.println("Calibrating sensor... Keep the board still.");
-  delay(1500);
-
-  float sum = 0;
-  for (int i = 0; i < 50; i++) {
-    float x = imu.readFloatAccelX();
-    float y = imu.readFloatAccelY();
-    sum += sqrt((x * x + y * y) / 2.0);
-    delay(20);
+      if (msg == "on") {
+        digitalWrite(LED_PIN, HIGH);
+        Serial.println("LED ON");
+      } else if (msg == "off") {
+        digitalWrite(LED_PIN, LOW);
+        Serial.println("LED OFF");
+      } else {
+        Serial.println("Invalid command. Use 'on' or 'off'.");
+      }
+    }
   }
-
-  baseline = sum / 50.0;
-  Serial.print("Calibration baseline (RMS): ");
-  Serial.println(baseline, 4);
-}
+};
 
 void setup() {
   Serial.begin(115200);
-  Wire.begin();
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW); // Start with LED off
 
-  // Initialize IMU
-  if (imu.begin() != 0) {
-    Serial.println("Failed to initialize IMU!");
-    while (1);
-  }
-  Serial.println("IMU initialized.");
-
-  calibrateSensor();
-
-  // Initialize BLE
   BLEDevice::init("SDSUCS");
   BLEServer *pServer = BLEDevice::createServer();
+
   BLEService *pService = pServer->createService(SERVICE_UUID);
 
-  pCharacteristic = pService->createCharacteristic(
+  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
     CHARACTERISTIC_UUID,
-    BLECharacteristic::PROPERTY_NOTIFY |
+    BLECharacteristic::PROPERTY_WRITE |
     BLECharacteristic::PROPERTY_READ
   );
 
-  pCharacteristic->setValue("Step Counter Ready");
+  pCharacteristic->setCallbacks(new MyCallbacks());
+  pCharacteristic->setValue("Send 'on' or 'off'");
   pService->start();
 
   BLEAdvertising *pAdvertising = pServer->getAdvertising();
   pAdvertising->start();
 
-  Serial.println("BLE advertising started. Connect with your phone.");
+  Serial.println("BLE server ready. Send 'on' or 'off' from your phone.");
 }
 
 void loop() {
-  float x = imu.readFloatAccelX();
-  float y = imu.readFloatAccelY();
-
-  float rms = sqrt((x * x + y * y) / 2.0);
-  float diff = fabs(rms - baseline);
-  unsigned long now = millis();
-
-  // Simple threshold step detection
-  if (diff > THRESHOLD) {
-    if (!wasOverThreshold && (now - lastStepTime > 300)) {
-      stepCount++;
-      lastStepTime = now;
-
-      Serial.print("Step detected! Total steps: ");
-      Serial.println(stepCount);
-
-      String msg = String("Steps: ") + stepCount;
-      pCharacteristic->setValue(msg.c_str());
-      pCharacteristic->notify();
-    }
-    wasOverThreshold = true;
-  } else {
-    wasOverThreshold = false;
-  }
-
-  delay(20); // 50Hz
+  delay(1000); 
 }

@@ -35,3 +35,8 @@ Every time a step is detected, the total step count is updated and sent via BLE 
 DEMO VIDEO FOR PART B: https://youtu.be/IyRbiv70N9s
 
 CONEXIONS PART B:
+![image](https://github.com/user-attachments/assets/59a07941-77a4-44af-b8f7-5978b27e09df)
+![image](https://github.com/user-attachments/assets/0c5721f8-ffa4-44ec-8ab4-1e691b6129eb)
+![image](https://github.com/user-attachments/assets/3b1e04a9-2878-4607-95c6-57e7ff6dc737)
+
+
